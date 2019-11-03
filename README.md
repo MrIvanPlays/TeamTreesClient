@@ -7,6 +7,8 @@
 
 Client for retrieving information about team trees
 
+Javadocs: https://mrivanplays.com/javadocs/TeamTreesClient/
+
 ## Installation
 
 Using maven:

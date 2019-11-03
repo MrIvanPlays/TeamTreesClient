@@ -57,15 +57,15 @@ public final class FullGoalData {
    */
   public long getDaysLeft() {
     LocalDate january1st2020 = LocalDate.of(2020, 1, 1);
-    Duration duration = Duration.between(LocalDate.now(), january1st2020);
+    Duration duration = Duration.between(LocalDate.now().atStartOfDay(), january1st2020.atStartOfDay());
     return duration.toDays();
   }
 
   /**
    * @return the percentage the goal is done
    */
-  public long getPercentDone() {
-    return (trees / 20000000) * 100;
+  public double getPercentDone() {
+    return (trees / 20000000D) * 100;
   }
 
   /**
@@ -80,5 +80,14 @@ public final class FullGoalData {
    */
   public Donation getTopDonation() {
     return topDonation;
+  }
+
+  @Override
+  public String toString() {
+    return "FullGoalData{" +
+        "trees=" + trees +
+        ", mostRecentDonation=" + mostRecentDonation +
+        ", topDonation=" + topDonation +
+        '}';
   }
 }

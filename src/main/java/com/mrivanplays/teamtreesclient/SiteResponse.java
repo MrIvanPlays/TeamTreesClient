@@ -60,4 +60,13 @@ public final class SiteResponse<T> {
   public String getResponseMessage() {
     return responseMessage;
   }
+
+  @Override
+  public String toString() {
+    return "SiteResponse{" +
+        "data=" + data +
+        ", responseCode=" + responseCode +
+        ", responseMessage='" + responseMessage + '\'' +
+        '}';
+  }
 }

@@ -34,6 +34,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+/** Represents client, retrieving all info available. */
 public final class TeamTreesClient {
 
   private OkHttpClient okHttp;
@@ -50,6 +51,7 @@ public final class TeamTreesClient {
             .build();
   }
 
+  /** @return current trees we have */
   public CompletableFuture<SiteResponse<Long>> retrieveCurrentTrees() {
     return CompletableFuture.supplyAsync(
         () -> {
@@ -58,6 +60,7 @@ public final class TeamTreesClient {
             if (response.code() == 503) {
               return new SiteResponse<>(503, "teamtrees.org is being overloaded with traffic");
             }
+
             Document document = Jsoup.parse(response.body().string());
             long count = Long.parseLong(document.selectFirst("div.counter").attr("data-count"));
             return new SiteResponse<>(count);
@@ -69,6 +72,7 @@ public final class TeamTreesClient {
         });
   }
 
+  /** @return most recent donation */
   public CompletableFuture<SiteResponse<Donation>> retrieveRecentDonation() {
     return CompletableFuture.supplyAsync(
         () -> {
@@ -78,13 +82,22 @@ public final class TeamTreesClient {
               return new SiteResponse<>(503, "teamtrees.org is being overloaded with traffic");
             }
             Document document = Jsoup.parse(response.body().string());
-            Element paragraph = document.selectFirst("p.media-body pb-3 mb-0 border-bottom border-gray");
-            String name = paragraph.selectFirst("strong").text();
-            Elements spanElements = paragraph.select("span");
-            long treesDonated = Long.parseLong(spanElements.get(0).text().split(" ")[0].replace(",", ""));
-            String dateAt = spanElements.get(1).text();
-            String message = spanElements.get(2).text();
-            return new SiteResponse<>(new Donation(name, treesDonated, dateAt, message));
+            Elements divElements = document.select("div");
+
+            for (Element div : divElements) {
+              if (div.attr("id").equalsIgnoreCase("recent-donations")) {
+                Element mostRecentDiv = div.selectFirst("div");
+                Element paragraph = mostRecentDiv.selectFirst("p");
+                String name = paragraph.selectFirst("strong").text();
+                Elements spanElements = paragraph.select("span");
+                long treesDonated =
+                    Long.parseLong(spanElements.get(0).text().split(" ")[0].replace(",", ""));
+                String dateAt = spanElements.get(1).text();
+                String message = spanElements.get(2).text();
+                return new SiteResponse<>(new Donation(name, treesDonated, dateAt, message));
+              }
+            }
+            return new SiteResponse<>(400, "Internal error occurred while trying to send request");
           } catch (SocketTimeoutException e) {
             return new SiteResponse<>(408, "teamtrees.org timed out");
           } catch (IOException e) {
@@ -93,6 +106,7 @@ public final class TeamTreesClient {
         });
   }
 
+  /** @return top donation (at the time of making this client: Tobi Lutke) */
   public CompletableFuture<SiteResponse<Donation>> retrieveTopDonation() {
     return CompletableFuture.supplyAsync(
         () -> {
@@ -102,15 +116,22 @@ public final class TeamTreesClient {
               return new SiteResponse<>(503, "teamtrees.org is being overloaded with traffic");
             }
             Document document = Jsoup.parse(response.body().string());
-            Element topListDiv = document.selectFirst("div.tab-pane fade active show");
-            Element mostRecentDiv = topListDiv.selectFirst("div");
-            Element paragraph = mostRecentDiv.selectFirst("p");
-            String name = paragraph.selectFirst("strong").text();
-            Elements spanElements = paragraph.select("span");
-            long treesDonated = Long.parseLong(spanElements.get(0).text().split(" ")[0].replace(",", ""));
-            String dateAt = spanElements.get(1).text();
-            String message = spanElements.get(2).text();
-            return new SiteResponse<>(new Donation(name, treesDonated, dateAt, message));
+            Elements divElements = document.select("div");
+
+            for (Element div : divElements) {
+              if (div.attr("id").equalsIgnoreCase("top-donations")) {
+                Element mostRecentDiv = div.selectFirst("div");
+                Element paragraph = mostRecentDiv.selectFirst("p");
+                String name = paragraph.selectFirst("strong").text();
+                Elements spanElements = paragraph.select("span");
+                long treesDonated =
+                    Long.parseLong(spanElements.get(0).text().split(" ")[0].replace(",", ""));
+                String dateAt = spanElements.get(1).text();
+                String message = spanElements.get(2).text();
+                return new SiteResponse<>(new Donation(name, treesDonated, dateAt, message));
+              }
+            }
+            return new SiteResponse<>(400, "Internal error occurred while trying to send request");
           } catch (SocketTimeoutException e) {
             return new SiteResponse<>(408, "teamtrees.org timed out");
           } catch (IOException e) {
@@ -119,6 +140,7 @@ public final class TeamTreesClient {
         });
   }
 
+  /** @return full data */
   public CompletableFuture<SiteResponse<FullGoalData>> retrieveFullData() {
     return CompletableFuture.supplyAsync(
         () -> {
@@ -129,22 +151,34 @@ public final class TeamTreesClient {
             }
             Document document = Jsoup.parse(response.body().string());
             long trees = Long.parseLong(document.selectFirst("div.counter").attr("data-count"));
-            Element paragraphRecent = document.selectFirst("p.media-body pb-3 mb-0 border-bottom border-gray");
-            String nameRecent = paragraphRecent.selectFirst("strong").text();
-            Elements spanElementsRecent = paragraphRecent.select("span");
-            long treesDonatedRecent = Long.parseLong(spanElementsRecent.get(0).text().split(" ")[0].replace(",", ""));
-            String dateAtRecent = spanElementsRecent.get(1).text();
-            String messageRecent = spanElementsRecent.get(2).text();
-            Donation recent = new Donation(nameRecent, treesDonatedRecent, dateAtRecent, messageRecent);
-            Element topListDiv = document.selectFirst("div.tab-pane fade active show");
-            Element mostRecentTopDiv = topListDiv.selectFirst("div");
-            Element paragraphTop = mostRecentTopDiv.selectFirst("p");
-            String nameTop = paragraphTop.selectFirst("strong").text();
-            Elements spanElementsTop = paragraphTop.select("span");
-            long treesDonatedTop = Long.parseLong(spanElementsTop.get(0).text().split(" ")[0].replace(",", ""));
-            String dateAtTop = spanElementsTop.get(1).text();
-            String messageTop = spanElementsTop.get(2).text();
-            Donation top = new Donation(nameTop, treesDonatedTop, dateAtTop, messageTop);
+            Elements divElements = document.select("div");
+
+            Donation recent = null;
+            Donation top = null;
+            for (Element div : divElements) {
+              if (div.attr("id").equalsIgnoreCase("recent-donations")) {
+                Element mostRecentDiv = div.selectFirst("div");
+                Element paragraphRecent = mostRecentDiv.selectFirst("p");
+                String nameRecent = paragraphRecent.selectFirst("strong").text();
+                Elements spanElementsRecent = paragraphRecent.select("span");
+                long treesDonatedRecent =
+                    Long.parseLong(spanElementsRecent.get(0).text().split(" ")[0].replace(",", ""));
+                String dateAtRecent = spanElementsRecent.get(1).text();
+                String messageRecent = spanElementsRecent.get(2).text();
+                recent = new Donation(nameRecent, treesDonatedRecent, dateAtRecent, messageRecent);
+              }
+              if (div.attr("id").equalsIgnoreCase("top-donations")) {
+                Element mostRecentDiv = div.selectFirst("div");
+                Element paragraphTop = mostRecentDiv.selectFirst("p");
+                String nameTop = paragraphTop.selectFirst("strong").text();
+                Elements spanElementsTop = paragraphTop.select("span");
+                long treesDonatedTop =
+                    Long.parseLong(spanElementsTop.get(0).text().split(" ")[0].replace(",", ""));
+                String dateAtTop = spanElementsTop.get(1).text();
+                String messageTop = spanElementsTop.get(2).text();
+                top = new Donation(nameTop, treesDonatedTop, dateAtTop, messageTop);
+              }
+            }
             return new SiteResponse<>(new FullGoalData(trees, recent, top));
           } catch (SocketTimeoutException e) {
             return new SiteResponse<>(408, "teamtrees.org timed out");

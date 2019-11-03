@@ -22,53 +22,28 @@
 */
 package com.mrivanplays.teamtreesclient;
 
-/** Represents a donation, whether or not it is being a recent or top donation. */
-public final class Donation {
+import java.util.Optional;
+import org.junit.Test;
 
-  private String name;
-  private long treesDonated;
-  private String dateAt;
-  private String message;
+public class TeamTreesClientTest {
 
-  public Donation(String name, long treesDonated, String dateAt, String message) {
-    this.name = name;
-    this.treesDonated = treesDonated;
-    this.dateAt = dateAt;
-    this.message = message;
-  }
-
-  /** @return the (nick)name of the person who donated that amount */
-  public String getName() {
-    return name;
-  }
-
-  /** @return trees donated */
-  public long getTreesDonated() {
-    return treesDonated;
-  }
-
-  /**
-   * Returns the date when this donation was made. For top donation this is being in different
-   * format.
-   *
-   * @return date at
-   */
-  public String getDateAt() {
-    return dateAt;
-  }
-
-  /** @return message, typed by the donator */
-  public String getMessage() {
-    return message;
-  }
-
-  @Override
-  public String toString() {
-    return "Donation{" +
-        "name='" + name + '\'' +
-        ", treesDonated=" + treesDonated +
-        ", dateAt='" + dateAt + '\'' +
-        ", message='" + message + '\'' +
-        '}';
+  @Test
+  public void test() {
+    TeamTreesClient client = new TeamTreesClient();
+    SiteResponse<FullGoalData> siteResponse = client.retrieveFullData().join();
+    Optional<FullGoalData> dataOptional = siteResponse.getData();
+    if (dataOptional.isPresent()) {
+      FullGoalData data = dataOptional.get();
+      System.out.println("Days left: " + data.getDaysLeft());
+      System.out.println(
+          "Recent donation trees: " + data.getMostRecentDonation().getTreesDonated());
+      System.out.println(
+          "Top donation trees: " + data.getTopDonation().getTreesDonated());
+      System.out.println("Trees donated: " + data.getTrees());
+      System.out.println("Trees left: " + data.getTreesLeft());
+      System.out.println("Percent done: " + data.getPercentDone());
+    } else {
+      System.out.println("Optional not present");
+    }
   }
 }
