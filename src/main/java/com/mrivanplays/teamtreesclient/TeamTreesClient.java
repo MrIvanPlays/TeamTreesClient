@@ -25,6 +25,9 @@ package com.mrivanplays.teamtreesclient;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import okhttp3.Call;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -39,8 +42,13 @@ public final class TeamTreesClient {
 
   private OkHttpClient okHttp;
   private volatile Request request;
+  private ExecutorService executor;
 
   public TeamTreesClient() {
+    this(Executors.newSingleThreadExecutor());
+  }
+
+  public TeamTreesClient(ExecutorService executor) {
     okHttp = new OkHttpClient();
     request =
         new Request.Builder()
@@ -49,6 +57,7 @@ public final class TeamTreesClient {
                 "User-Agent",
                 "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:15.0) Gecko/20100101 Firefox/15.0.1")
             .build();
+    this.executor = executor;
   }
 
   /** @return current trees we have */
@@ -69,7 +78,8 @@ public final class TeamTreesClient {
           } catch (IOException e) {
             return new SiteResponse<>(400, "Internal error occurred while trying to send request");
           }
-        });
+        },
+        executor);
   }
 
   /** @return most recent donation */
@@ -103,7 +113,8 @@ public final class TeamTreesClient {
           } catch (IOException e) {
             return new SiteResponse<>(400, "Internal error occurred while trying to send request");
           }
-        });
+        },
+        executor);
   }
 
   /** @return top donation (at the time of making this client: Tobi Lutke) */
@@ -137,7 +148,8 @@ public final class TeamTreesClient {
           } catch (IOException e) {
             return new SiteResponse<>(400, "Internal error occurred while trying to send request");
           }
-        });
+        },
+        executor);
   }
 
   /** @return full data */
@@ -185,6 +197,19 @@ public final class TeamTreesClient {
           } catch (IOException e) {
             return new SiteResponse<>(400, "Internal error occurred while trying to send request");
           }
-        });
+        },
+        executor);
+  }
+
+  /** Shuts down the client */
+  public void shutdown() {
+    executor.shutdownNow();
+    try {
+      executor.awaitTermination(500, TimeUnit.NANOSECONDS);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+    okHttp.connectionPool().evictAll();
+    okHttp.dispatcher().executorService().shutdown();
   }
 }
