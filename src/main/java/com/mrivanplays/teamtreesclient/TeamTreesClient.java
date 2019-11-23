@@ -43,12 +43,17 @@ public final class TeamTreesClient {
   private OkHttpClient okHttp;
   private volatile Request request;
   private ExecutorService executor;
+  private boolean disableExecutorOnShutdown;
 
   public TeamTreesClient() {
     this(Executors.newSingleThreadExecutor());
   }
 
   public TeamTreesClient(ExecutorService executor) {
+    this(executor, true);
+  }
+
+  public TeamTreesClient(ExecutorService executor, boolean disableExecutorOnShutdown) {
     okHttp = new OkHttpClient();
     request =
         new Request.Builder()
@@ -58,6 +63,7 @@ public final class TeamTreesClient {
                 "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:15.0) Gecko/20100101 Firefox/15.0.1")
             .build();
     this.executor = executor;
+    this.disableExecutorOnShutdown = disableExecutorOnShutdown;
   }
 
   /** @return current trees we have */
@@ -203,11 +209,13 @@ public final class TeamTreesClient {
 
   /** Shuts down the client */
   public void shutdown() {
-    executor.shutdownNow();
-    try {
-      executor.awaitTermination(500, TimeUnit.NANOSECONDS);
-    } catch (InterruptedException e) {
-      e.printStackTrace();
+    if (disableExecutorOnShutdown) {
+      executor.shutdownNow();
+      try {
+        executor.awaitTermination(500, TimeUnit.NANOSECONDS);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
     }
     okHttp.connectionPool().evictAll();
     okHttp.dispatcher().executorService().shutdown();
