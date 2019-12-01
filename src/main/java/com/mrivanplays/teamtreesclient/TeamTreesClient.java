@@ -46,15 +46,23 @@ public final class TeamTreesClient {
   private boolean disableExecutorOnShutdown;
 
   public TeamTreesClient() {
-    this(Executors.newSingleThreadExecutor());
+    this(new OkHttpClient(), Executors.newSingleThreadExecutor());
   }
 
   public TeamTreesClient(ExecutorService executor) {
-    this(executor, true);
+    this(new OkHttpClient(), executor);
   }
 
   public TeamTreesClient(ExecutorService executor, boolean disableExecutorOnShutdown) {
-    okHttp = new OkHttpClient();
+    this(new OkHttpClient(), executor, disableExecutorOnShutdown);
+  }
+
+  public TeamTreesClient(OkHttpClient client, ExecutorService executor) {
+    this(client, executor, true);
+  }
+
+  public TeamTreesClient(OkHttpClient client, ExecutorService executor, boolean disableExecutorOnShutdown) {
+    okHttp = client;
     request =
         new Request.Builder()
             .url("https://teamtrees.org/")
