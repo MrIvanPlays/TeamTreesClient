@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import okhttp3.Call;
+import okhttp3.Dispatcher;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -44,17 +45,26 @@ public final class TeamTreesClient {
   private volatile Request request;
   private ExecutorService executor;
   private boolean disableExecutorOnShutdown;
+  private boolean disableClientOnShutdown;
 
   public TeamTreesClient() {
-    this(new OkHttpClient(), Executors.newSingleThreadExecutor());
+    this(Executors.newSingleThreadExecutor());
+  }
+
+  public TeamTreesClient(OkHttpClient client) {
+    this(client, true);
+  }
+
+  public TeamTreesClient(OkHttpClient client, boolean disableClientOnShutdown) {
+    this(client, Executors.newSingleThreadExecutor(), true, disableClientOnShutdown);
   }
 
   public TeamTreesClient(ExecutorService executor) {
-    this(new OkHttpClient(), executor);
+    this(executor, true);
   }
 
   public TeamTreesClient(ExecutorService executor, boolean disableExecutorOnShutdown) {
-    this(new OkHttpClient(), executor, disableExecutorOnShutdown);
+    this(new OkHttpClient.Builder().dispatcher(new Dispatcher(executor)).build(), executor, disableExecutorOnShutdown);
   }
 
   public TeamTreesClient(OkHttpClient client, ExecutorService executor) {
@@ -62,6 +72,14 @@ public final class TeamTreesClient {
   }
 
   public TeamTreesClient(OkHttpClient client, ExecutorService executor, boolean disableExecutorOnShutdown) {
+    this(client, executor, disableExecutorOnShutdown, true);
+  }
+
+  public TeamTreesClient(
+      OkHttpClient client,
+      ExecutorService executor,
+      boolean disableExecutorOnShutdown,
+      boolean disableClientOnShutdown) {
     okHttp = client;
     request =
         new Request.Builder()
@@ -72,6 +90,7 @@ public final class TeamTreesClient {
             .build();
     this.executor = executor;
     this.disableExecutorOnShutdown = disableExecutorOnShutdown;
+    this.disableClientOnShutdown = disableClientOnShutdown;
   }
 
   /** @return current trees we have */
@@ -106,22 +125,12 @@ public final class TeamTreesClient {
               return new SiteResponse<>(503, "teamtrees.org is being overloaded with traffic");
             }
             Document document = Jsoup.parse(response.body().string());
-            Elements divElements = document.select("div");
-
-            for (Element div : divElements) {
-              if (div.attr("id").equalsIgnoreCase("recent-donations")) {
-                Element mostRecentDiv = div.selectFirst("div");
-                Element paragraph = mostRecentDiv.selectFirst("p");
-                String name = paragraph.selectFirst("strong").text();
-                Elements spanElements = paragraph.select("span");
-                long treesDonated =
-                    Long.parseLong(spanElements.get(0).text().split(" ")[0].replace(",", ""));
-                String dateAt = spanElements.get(1).text();
-                String message = spanElements.get(2).text();
-                return new SiteResponse<>(new Donation(name, treesDonated, dateAt, message));
-              }
-            }
-            return new SiteResponse<>(400, "Internal error occurred while trying to send request");
+            return new SiteResponse<>(
+                getDonation(
+                    document
+                        .getElementById("recent-donations")
+                        .selectFirst("div")
+                        .selectFirst("p")));
           } catch (SocketTimeoutException e) {
             return new SiteResponse<>(408, "teamtrees.org timed out");
           } catch (IOException e) {
@@ -141,22 +150,9 @@ public final class TeamTreesClient {
               return new SiteResponse<>(503, "teamtrees.org is being overloaded with traffic");
             }
             Document document = Jsoup.parse(response.body().string());
-            Elements divElements = document.select("div");
-
-            for (Element div : divElements) {
-              if (div.attr("id").equalsIgnoreCase("top-donations")) {
-                Element mostRecentDiv = div.selectFirst("div");
-                Element paragraph = mostRecentDiv.selectFirst("p");
-                String name = paragraph.selectFirst("strong").text();
-                Elements spanElements = paragraph.select("span");
-                long treesDonated =
-                    Long.parseLong(spanElements.get(0).text().split(" ")[0].replace(",", ""));
-                String dateAt = spanElements.get(1).text();
-                String message = spanElements.get(2).text();
-                return new SiteResponse<>(new Donation(name, treesDonated, dateAt, message));
-              }
-            }
-            return new SiteResponse<>(400, "Internal error occurred while trying to send request");
+            return new SiteResponse<>(
+                getDonation(
+                    document.getElementById("top-donations").selectFirst("div").selectFirst("p")));
           } catch (SocketTimeoutException e) {
             return new SiteResponse<>(408, "teamtrees.org timed out");
           } catch (IOException e) {
@@ -177,35 +173,19 @@ public final class TeamTreesClient {
             }
             Document document = Jsoup.parse(response.body().string());
             long trees = Long.parseLong(document.selectFirst("div.counter").attr("data-count"));
-            Elements divElements = document.select("div");
-
-            Donation recent = null;
-            Donation top = null;
-            for (Element div : divElements) {
-              if (div.attr("id").equalsIgnoreCase("recent-donations")) {
-                Element mostRecentDiv = div.selectFirst("div");
-                Element paragraphRecent = mostRecentDiv.selectFirst("p");
-                String nameRecent = paragraphRecent.selectFirst("strong").text();
-                Elements spanElementsRecent = paragraphRecent.select("span");
-                long treesDonatedRecent =
-                    Long.parseLong(spanElementsRecent.get(0).text().split(" ")[0].replace(",", ""));
-                String dateAtRecent = spanElementsRecent.get(1).text();
-                String messageRecent = spanElementsRecent.get(2).text();
-                recent = new Donation(nameRecent, treesDonatedRecent, dateAtRecent, messageRecent);
-              }
-              if (div.attr("id").equalsIgnoreCase("top-donations")) {
-                Element mostRecentDiv = div.selectFirst("div");
-                Element paragraphTop = mostRecentDiv.selectFirst("p");
-                String nameTop = paragraphTop.selectFirst("strong").text();
-                Elements spanElementsTop = paragraphTop.select("span");
-                long treesDonatedTop =
-                    Long.parseLong(spanElementsTop.get(0).text().split(" ")[0].replace(",", ""));
-                String dateAtTop = spanElementsTop.get(1).text();
-                String messageTop = spanElementsTop.get(2).text();
-                top = new Donation(nameTop, treesDonatedTop, dateAtTop, messageTop);
-              }
-            }
-            return new SiteResponse<>(new FullGoalData(trees, recent, top));
+            return new SiteResponse<>(
+                new FullGoalData(
+                    trees,
+                    getDonation(
+                        document
+                            .getElementById("recent-donations")
+                            .selectFirst("div")
+                            .selectFirst("p")),
+                    getDonation(
+                        document
+                            .getElementById("top-donations")
+                            .selectFirst("div")
+                            .selectFirst("p"))));
           } catch (SocketTimeoutException e) {
             return new SiteResponse<>(408, "teamtrees.org timed out");
           } catch (IOException e) {
@@ -213,6 +193,15 @@ public final class TeamTreesClient {
           }
         },
         executor);
+  }
+
+  private Donation getDonation(Element paragraph) {
+    String name = paragraph.selectFirst("strong").text();
+    Elements spanElements = paragraph.select("span");
+    long treesDonated = Long.parseLong(spanElements.get(0).text().split(" ")[0].replace(",", ""));
+    String dateAt = spanElements.get(1).text();
+    String message = spanElements.get(2).text();
+    return new Donation(name, treesDonated, dateAt, message);
   }
 
   /** Shuts down the client */
@@ -225,7 +214,9 @@ public final class TeamTreesClient {
         e.printStackTrace();
       }
     }
-    okHttp.connectionPool().evictAll();
-    okHttp.dispatcher().executorService().shutdown();
+    if (disableClientOnShutdown) {
+      okHttp.connectionPool().evictAll();
+      okHttp.dispatcher().executorService().shutdown();
+    }
   }
 }
